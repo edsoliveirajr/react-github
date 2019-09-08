@@ -2,7 +2,6 @@ import React, { Component } from 'react';
 import { Link } from 'react-router-dom';
 
 import { FaGithubAlt, FaPlus, FaSpinner } from 'react-icons/fa';
-
 import api from '../../services/api';
 
 import { Form, SubmitButton, List } from './styles';
@@ -12,6 +11,8 @@ export default class Main extends Component {
   state = {
     repositories: [],
     newRepo: '',
+    loading: false,
+    error: null,
   };
 
   componentDidMount() {
@@ -39,10 +40,19 @@ export default class Main extends Component {
   handleSubmit = async e => {
     e.preventDefault();
 
+    this.setState({ loading: true, error: false });
+
     const { newRepo, repositories } = this.state;
 
     try {
-      const response = await api.get(`/repos/${newRepo}`);
+      this.validateRepository(newRepo);
+
+      let response;
+      try {
+        response = await api.get(`/repos/${newRepo}`);
+      } catch {
+        throw new Error('Repositório não existe');
+      }
 
       const data = {
         name: response.data.full_name,
@@ -51,15 +61,40 @@ export default class Main extends Component {
       this.setState({
         repositories: [...repositories, data],
         newRepo: '',
-        loading: false,
       });
     } catch (err) {
       alert(err);
+      this.setState({
+        error: true,
+      });
+    } finally {
+      this.setState({
+        loading: false,
+      });
     }
   };
 
+  checkIfRepositoryDuplicate(newRepoName) {
+    const { repositories } = this.state;
+
+    const repository = repositories.find(value => {
+      return value.name === newRepoName;
+    });
+
+    if (repository) {
+      throw new Error('Repositório duplicado');
+    }
+  }
+
+  validateRepository(newRepoName) {
+    if (!newRepoName) {
+      throw new Error('Repositório não foi informado');
+    }
+    this.checkIfRepositoryDuplicate(newRepoName);
+  }
+
   render() {
-    const { newRepo, repositories, loading } = this.state;
+    const { newRepo, repositories, loading, error } = this.state;
 
     return (
       <Container>
@@ -68,7 +103,7 @@ export default class Main extends Component {
           Repositórios
         </h1>
 
-        <Form onSubmit={this.handleSubmit}>
+        <Form onSubmit={this.handleSubmit} error={error}>
           <input
             type="text"
             placeholder="Adicionar repositório"
